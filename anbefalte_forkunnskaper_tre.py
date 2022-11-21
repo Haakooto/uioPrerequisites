@@ -29,8 +29,8 @@ class ThreadManager:
 
 class Emne:
     Tilbud = {}
-    nivåmap = {"0": 0, "1": 0, "2": 1, "3": 2, "4": 3,
-               "5": 3, "6": 3, "7": 4, "8": 4, "9": 4}
+    nivåmap = {"0": 6, "1": 0, "2": 1, "3": 2, "4": 3,
+               "5": 4, "6": 6, "7": 6, "8": 6, "9": 5}
 
     def __init__(self, kode, url, navn):
         if kode not in Emne.Tilbud.keys():
@@ -248,7 +248,7 @@ attrs = {emne: {"Navn": emne.navn, "Studiepoeng": emne.st_poeng}
 nx.set_node_attributes(graf, attrs)
 
 shells = []
-for i in range(5):
+for i in range(max(Emne.nivåmap.values()) + 1):
     shells.append([])
 for node in graf.nodes:
     shells[node.nivå].append(node)
