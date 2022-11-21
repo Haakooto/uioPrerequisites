@@ -14,11 +14,6 @@ import webbrowser
 import re
 
 
-class EmneListe(list):
-    def __str__(self):
-        return f"{[emne.kode for emne in self]}"
-
-
 class ThreadManager:
     def __init__(self, thread_count):
         self.alive = [True] * thread_count
@@ -29,6 +24,8 @@ class ThreadManager:
 
 class Emne:
     Tilbud = {}
+    anb_cache = {}
+    dep_cache = {}
     nivåmap = {"0": 6, "1": 0, "2": 1, "3": 2, "4": 3,
                "5": 4, "6": 6, "7": 6, "8": 6, "9": 5}
 
@@ -37,7 +34,7 @@ class Emne:
             self.kode = kode
             self.url = url
             self.navn = navn
-            self.anb_fork = EmneListe()
+            self.anb_fork = []
             self.deps = []
             self.fork = 0
             try:
@@ -184,6 +181,43 @@ class Emne:
     def edges(self):
         return [(other, self) for other in self.anb_fork]
 
+    @staticmethod
+    def drop_unconnected(args):
+        if args == []:
+            return
+        keeps = set()
+        for arg in args:
+            if arg in Emne.Tilbud.keys():
+                keeps.add(Emne.Tilbud[arg])
+                keeps |= Emne.Tilbud[arg].anbanb()
+                keeps |= Emne.Tilbud[arg].depdep()
+        if len(keeps) == 0:
+            return
+        Emne.Tilbud = {emne.kode: emne for emne in keeps}
+        for emne in Emne.Tilbud.values():
+            emne.deps = list(set(emne.deps).intersection(keeps))
+            emne.anb_fork = list(set(emne.anb_fork).intersection(keeps))
+
+    def anbanb(self):
+        if self in Emne.anb_cache:
+            return Emne.anb_cache[self]
+        else:
+            Emne.anb_cache[self] = set()
+        for anb in self.anb_fork:
+            Emne.anb_cache[self].add(anb)
+            Emne.anb_cache[self] |= anb.anbanb()
+        return Emne.anb_cache[self]
+
+    def depdep(self):
+        if self in Emne.dep_cache.keys():
+            return Emne.dep_cache[self]
+        else:
+            Emne.dep_cache[self] = set()
+        for dep in self.deps:
+            Emne.dep_cache[self].add(dep)
+            Emne.dep_cache[self] |= dep.depdep()
+        return Emne.dep_cache[self]
+
 
 def hent_emner(sidelink, sider_sett=[]):
     print("Henter emner fra", sidelink)
@@ -217,7 +251,7 @@ sted = sys.argv[1]  # fakultet eller institutt
 hent = True
 if os.path.isfile(f"./{sted.replace('/', '_')}_emner.pkl"):
     hent = False
-threads = 8  # antall tråder for innsamling av forkunnskaper.
+threads = 4  # antall tråder for innsamling av forkunnskaper.
 freeze = False
 
 if hent:
@@ -237,6 +271,7 @@ else:
         Emne.Tilbud = pickle.load(f)
 
 Emne.drop_enslige()
+Emne.drop_unconnected(sys.argv[2:])
 Emne.rist()
 for emne in Emne.Tilbud.values():
     print(f"{emne.kode:<12} {emne.nivå}: Dependencies: {len(emne.anb_fork):>3}. Dependents: {len(emne.deps):>3}")
@@ -260,7 +295,10 @@ index_map = {pos_Emner[i]: i for i in range(len(pos_Emner))}
 nodes = nx.draw_networkx_nodes(graf, pos=pos, ax=ax, node_size=100)
 edges = nx.draw_networkx_edges(graf, pos=pos, ax=ax)
 ax.axis("off")
-ax.set_title(f"Emner ved {sted.replace('/', ' ')}")
+ax.set_ylim([-1, 1])
+ax.set_xlim([-1, 1])
+tittel = f"Emner ved {sted.replace('/', ' ')} " + " ".join(sys.argv[2:])
+ax.set_title(tittel)
 
 
 def make_edge_map(pos, edges):
@@ -276,7 +314,7 @@ def make_edge_map(pos, edges):
 
 edge_map = make_edge_map(pos, edges)
 
-annot = ax.annotate("", xy=(-1, 0.9), xytext=(20, 20), textcoords="offset points",
+annot = ax.annotate("", xy=(-1, 0.9), xytext=(0, 0), textcoords="offset points",
                     bbox=dict(boxstyle="round", fc="w"))
 annot.set_visible(False)
 
@@ -299,17 +337,23 @@ def hide(ind):
     alphas = np.ones(len(pos)) * 0.2
     alphas[ind] = 1
     colors[ind] = "black"
-    for i in deps_inds:
-        alphas[i] = 1
-        colors[i] = "green"
     for anb in node.anb_fork:
-        rec_deps = depdep(anb)
-        for rec in [index_map[dep] for dep in rec_deps]:
+        rec_anb = anb.anbanb()
+        for rec in [index_map[anb] for anb in rec_anb]:
             alphas[rec] = 0.6
             colors[rec] = "orange"
+    for dep in node.deps:
+        rec_deps = dep.depdep()
+        for rec in [index_map[dep] for dep in rec_deps]:
+            alphas[rec] = 0.5
+            colors[rec] = "lime"
+
     for i in fork_inds:
         alphas[i] = 1
         colors[i] = "red"
+    for i in deps_inds:
+        alphas[i] = 1
+        colors[i] = "green"
 
     for edge in edges:
         if edge not in edge_map[node]:
@@ -317,14 +361,6 @@ def hide(ind):
 
     nodes.set_alpha(alphas)
     nodes.set_color(colors)
-
-
-def depdep(node):
-    deps = set()
-    for dep in node.anb_fork:
-        deps.add(dep)
-        deps |= depdep(dep)
-    return deps
 
 
 def show_all():
