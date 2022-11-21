@@ -239,7 +239,7 @@ else:
 Emne.drop_enslige()
 Emne.rist()
 for emne in Emne.Tilbud.values():
-    print(f"{emne.kode:<12} {emne.nivå}: Dependencies: {len(emne.anb_fork):>3}. Dependents: {len(emne.deps):>q3}")
+    print(f"{emne.kode:<12} {emne.nivå}: Dependencies: {len(emne.anb_fork):>3}. Dependents: {len(emne.deps):>3}")
 
 graf = make_graph(Emne.Tilbud)
 print(graf)
