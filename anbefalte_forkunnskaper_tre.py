@@ -256,6 +256,7 @@ for node in graf.nodes:
 fig, ax = plt.subplots()
 pos = nx.shell_layout(graf, nlist=shells)
 pos_Emner = list(Emne.Tilbud.values())
+index_map = {pos_Emner[i]: i for i in range(len(pos_Emner))}
 nodes = nx.draw_networkx_nodes(graf, pos=pos, ax=ax, node_size=100)
 edges = nx.draw_networkx_edges(graf, pos=pos, ax=ax)
 ax.axis("off")
@@ -291,8 +292,8 @@ def update_annot(ind):
 def hide(ind):
     show_all()
     node = pos_Emner[ind]
-    deps_inds = [pos_Emner.index(dep) for dep in node.deps]
-    fork_inds = [pos_Emner.index(fork) for fork in node.anb_fork]
+    deps_inds = [index_map[dep] for dep in node.deps]
+    fork_inds = [index_map[fork] for fork in node.anb_fork]
 
     colors = ["blue"] * len(pos)
     alphas = np.ones(len(pos)) * 0.2
@@ -301,9 +302,9 @@ def hide(ind):
     for i in deps_inds:
         alphas[i] = 1
         colors[i] = "green"
-    for i in fork_inds:
-        rec_deps = set(depdep(pos_Emner[i]))
-        for rec in [pos_Emner.index(dep) for dep in rec_deps]:
+    for anb in node.anb_fork:
+        rec_deps = depdep(anb)
+        for rec in [index_map[dep] for dep in rec_deps]:
             alphas[rec] = 0.6
             colors[rec] = "orange"
     for i in fork_inds:
