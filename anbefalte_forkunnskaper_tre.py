@@ -29,7 +29,8 @@ class ThreadManager:
 
 class Emne:
     Tilbud = {}
-    nivåmap = {"0": 0, "1": 0, "2": 1, "3": 2, "4": 3, "5": 3, "6": 3, "7": 4, "8": 4, "9": 4}
+    nivåmap = {"0": 0, "1": 0, "2": 1, "3": 2, "4": 3,
+               "5": 3, "6": 3, "7": 4, "8": 4, "9": 4}
 
     def __init__(self, kode, url, navn):
         if kode not in Emne.Tilbud.keys():
@@ -40,7 +41,8 @@ class Emne:
             self.deps = []
             self.fork = 0
             try:
-                self.nivå = Emne.nivåmap[str(re.findall(r"\d+", self.kode)[0])[0]]
+                self.nivå = Emne.nivåmap[str(
+                    re.findall(r"\d+", self.kode)[0])[0]]
             except:
                 print(f"Nivåbestemmelse for {self.kode} feilet")
                 self.nivå = 0
@@ -77,6 +79,8 @@ class Emne:
         self.st_poeng = int(re.findall(r"\d+", text[st: st+100])[0])
 
         overlapp = text.rfind(overlapp_søk)
+        if overlapp == -1:
+            overlapp = text.rfind("Undervisning" if st != -1 else "Teaching")
         opptak = text.rfind(opptak_søk)
         if opptak < overlapp:
             oblig = text.rfind(oblig_søk)
@@ -94,7 +98,10 @@ class Emne:
                     continue
                 if "continued" in link.text:
                     continue
-                kode = link["href"].split("/")[-2]
+                try:
+                    kode = link["href"].split("/")[-2]
+                except:
+                    continue
                 if kode not in Emne.Tilbud.keys():
                     if not (kode := self.nedlagt(link["href"])):
                         continue
@@ -231,8 +238,8 @@ else:
 
 Emne.drop_enslige()
 Emne.rist()
-# for emne in Emne.Tilbud.values():
-#     print(f"{emne.kode:<12} {emne.nivå}: Dependencies: {len(emne.anb_fork):<3}. Dependents: {len(emne.deps):<3}")
+for emne in Emne.Tilbud.values():
+    print(f"{emne.kode:<12} {emne.nivå}: Dependencies: {len(emne.anb_fork):>3}. Dependents: {len(emne.deps):>q3}")
 
 graf = make_graph(Emne.Tilbud)
 print(graf)
@@ -332,14 +339,16 @@ def hover(event):
         cont, ind = nodes.contains(event)
         if cont:
             update_annot(ind["ind"][0])
-            if not freeze: hide(ind["ind"][0])
+            if not freeze:
+                hide(ind["ind"][0])
             annot.set_visible(True)
             fig.canvas.draw_idle()
         else:
             if vis:
                 annot.set_visible(False)
                 fig.canvas.draw_idle()
-            if not freeze: show_all()
+            if not freeze:
+                show_all()
 
 
 def click(event):
@@ -348,11 +357,14 @@ def click(event):
         if cont:
             webbrowser.open(pos_Emner[ind["ind"][0]].url)
 
+
 def keypress(event):
     if event.key == "p":
         global freeze
         freeze = not freeze
-        if not freeze: show_all()
+        if not freeze:
+            show_all()
+
 
 fig.canvas.mpl_connect("motion_notify_event", hover)
 fig.canvas.mpl_connect("button_press_event", click)
