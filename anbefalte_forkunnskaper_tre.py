@@ -29,6 +29,7 @@ class ThreadManager:
 
 class Emne:
     Tilbud = {}
+    nivåmap = {"0": 0, "1": 0, "2": 1, "3": 2, "4": 3, "5": 3, "6": 3, "7": 4, "8": 4, "9": 4}
 
     def __init__(self, kode, url, navn):
         if kode not in Emne.Tilbud.keys():
@@ -38,11 +39,16 @@ class Emne:
             self.anb_fork = EmneListe()
             self.deps = []
             self.fork = 0
+            try:
+                self.nivå = Emne.nivåmap[str(re.findall(r"\d+", self.kode)[0])[0]]
+            except:
+                print(f"Nivåbestemmelse for {self.kode} feilet")
+                self.nivå = 0
 
             Emne.Tilbud[self.kode] = self
 
     def __repr__(self):
-        return self.kode
+        return f"Emne {self.kode}"
 
     def __eq__(self, other):
         return self.kode == other.kode
@@ -92,7 +98,10 @@ class Emne:
                 if kode not in Emne.Tilbud.keys():
                     if not (kode := self.nedlagt(link["href"])):
                         continue
-                emne = Emne.Tilbud[kode]
+                try:
+                    emne = Emne.Tilbud[kode]
+                except KeyError:
+                    continue
                 if emne not in self.anb_fork:
                     emne.fork += 1
                     emne.deps.append(self)
@@ -201,7 +210,8 @@ sted = sys.argv[1]  # fakultet eller institutt
 hent = True
 if os.path.isfile(f"./{sted.replace('/', '_')}_emner.pkl"):
     hent = False
-threads = 4  # antall tråder for innsamling av forkunnskaper.
+threads = 8  # antall tråder for innsamling av forkunnskaper.
+freeze = False
 
 if hent:
     if sted == "alle/uio":
@@ -221,8 +231,8 @@ else:
 
 Emne.drop_enslige()
 Emne.rist()
-for emne in Emne.Tilbud.values():
-    print(f"{emne.kode:<12}: Dependencies: {len(emne.anb_fork):<3}. Dependents: {len(emne.deps):<3}")
+# for emne in Emne.Tilbud.values():
+#     print(f"{emne.kode:<12} {emne.nivå}: Dependencies: {len(emne.anb_fork):<3}. Dependents: {len(emne.deps):<3}")
 
 graf = make_graph(Emne.Tilbud)
 print(graf)
@@ -230,9 +240,15 @@ attrs = {emne: {"Navn": emne.navn, "Studiepoeng": emne.st_poeng}
          for emne in Emne.Tilbud.values()}
 nx.set_node_attributes(graf, attrs)
 
+shells = []
+for i in range(5):
+    shells.append([])
+for node in graf.nodes:
+    shells[node.nivå].append(node)
+
 fig, ax = plt.subplots()
-pos = nx.circular_layout(graf)
-pos_Emner = list(pos.keys())
+pos = nx.shell_layout(graf, nlist=shells)
+pos_Emner = list(Emne.Tilbud.values())
 nodes = nx.draw_networkx_nodes(graf, pos=pos, ax=ax, node_size=100)
 edges = nx.draw_networkx_edges(graf, pos=pos, ax=ax)
 ax.axis("off")
@@ -266,6 +282,7 @@ def update_annot(ind):
 
 
 def hide(ind):
+    show_all()
     node = pos_Emner[ind]
     deps_inds = [pos_Emner.index(dep) for dep in node.deps]
     fork_inds = [pos_Emner.index(fork) for fork in node.anb_fork]
@@ -309,19 +326,20 @@ def show_all():
 
 
 def hover(event):
+    global freeze
     vis = annot.get_visible()
     if event.inaxes == ax:
         cont, ind = nodes.contains(event)
         if cont:
             update_annot(ind["ind"][0])
-            hide(ind["ind"][0])
+            if not freeze: hide(ind["ind"][0])
             annot.set_visible(True)
             fig.canvas.draw_idle()
         else:
             if vis:
                 annot.set_visible(False)
                 fig.canvas.draw_idle()
-            show_all()
+            if not freeze: show_all()
 
 
 def click(event):
@@ -330,8 +348,14 @@ def click(event):
         if cont:
             webbrowser.open(pos_Emner[ind["ind"][0]].url)
 
+def keypress(event):
+    if event.key == "p":
+        global freeze
+        freeze = not freeze
+        if not freeze: show_all()
 
 fig.canvas.mpl_connect("motion_notify_event", hover)
 fig.canvas.mpl_connect("button_press_event", click)
+fig.canvas.mpl_connect("key_press_event", keypress)
 
 plt.show()
